@@ -1,4 +1,5 @@
 import discord
+print(discord.__version__)
 from discord.ext import commands, tasks
 from discord import app_commands
 import asyncio
@@ -55,11 +56,19 @@ def load_db() -> Dict:
     with open(DATA_FILE, "r") as f:
         return json.load(f)
 
+# ------ QUEUE SAVE -----------------
+
+from json_queue import queued_write
+import asyncio
+
 def save_db(db: Dict):
-    tmp = DATA_FILE + ".tmp"
-    with open(tmp, "w") as f:
-        json.dump(db, f, indent=2)
-    os.replace(tmp, DATA_FILE)
+    async def _write():
+        tmp = DATA_FILE + ".tmp"
+        with open(tmp, "w") as f:
+            json.dump(db, f, indent=2)
+        os.replace(tmp, DATA_FILE)
+
+    asyncio.create_task(queued_write(_write))
 
 # Inventory helpers (stacked)
 def ensure_user(db: Dict, user_id: str):
@@ -671,19 +680,36 @@ async def blp_leaderboard(ctx):
 # pirates
 
 import pirates
-
+import shop
+import themes
+import moderation
 # ----------------- Run -----------------
 @bot.event
 async def on_ready():
-    print(f"Bloop running as {bot.user} — ready to spin clouds of snacks! 🧁☁️")
-    
-#-----load other game modules----------
+    #-----load other game modules----------
 
     # import Pirates commands
     await pirates.setup(bot)
+    await shop.setup(bot)
+    await themes.setup(bot)
+    await moderation.setup(bot)
+    
+    print(f"Bloop running as {bot.user} — ready to spin clouds of snacks! 🧁☁️")
+    # try syncing slash commands
+    try:
+       synced = await bot.tree.sync()
+       print(f"Synced {len(synced)} slash commands.")
+    except Exception as e:
+        print(f"Error syncing commands: {e}")
 
-    
-    
+# ----------- Error handling ----------
+
+print("TOKEN LENGTH:", len(os.getenv("TOKEN") or ""))
+
+   
 # Run the bot
 
-bot.run(os.getenv("TOKEN"))
+try:
+  bot.run(os.getenv("TOKEN"))
+except Exception:
+     print("Blocked by cloudflare")
